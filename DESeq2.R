@@ -20,8 +20,8 @@ list.files(directory)
 
 samples <- list.files(directory, pattern = ".*counts$")
 meta <- read.csv("../../MetaData.csv")
-# ensure that sampleFiles and metadata table are in the same order
 
+# ensure that sampleFiles and metadata table are in the same order
 
 all( str_remove(samples, ".counts") == meta[,1] )
 
@@ -219,7 +219,10 @@ summary(results)
 
 # get shrunken log fold changes
 res_shrink <- lfcShrink(dds,type="ashr",coef="age_old_vs_young")
-
+summary(res_shrink)
+##write results to csv
+write.csv(as.data.frame(results), file="results_age_old_vs_young.csv")
+write.csv(as.data.frame(res_shrink), file="shrunkenlogfoldchanges_age_old_vs_young.csv")
 # plot the shrunken log2 fold changes against the raw changes:
 
 data.frame(l2fc=results$log2FoldChange, l2fc_shrink=res_shrink$log2FoldChange, padj=results$padj) %>%
@@ -274,7 +277,11 @@ rv <- rowVars(assay(rld))
 select <- order(rv, decreasing=T)[seq_len(min(500,length(rv)))]
 pc <- prcomp(t(assay(vsd)[select,]))
 pc
-# alternatively, using ggplot
+write.csv(as.data.frame(pc$rotation), file="PCA.csv")
+
+
+plotPCA(vsd, intgroup=c("age"))
+# using ggplot
 
 data <- plotPCA(vsd,returnData=TRUE,intgroup=c("age"))
 data
@@ -284,14 +291,6 @@ p <- p + geom_point() +
   ylab(paste("PC2: ", round(attr(data,"percentVar")[2],2)*100, "% variation explained", sep="")) +
   geom_label_repel(aes(label=name))
 p
-
-
-#write csv to get corresponding gene name from ensembl
-# drop <- c("baseMean","log2FoldChange","lfcSE","stat","pvalue","padj")
-# ensemblnames <- results[,!(names(results) %in% drop)]
-# ensemblnames <- results[0]
-# ensemblnames
-# write.csv(ensemblnames, "ensemblnames.csv")
 
 
 
@@ -306,10 +305,7 @@ lfcorder <- data.frame(res_shrink) %>%
   arrange(-abs(log2FoldChange)) %>% 
   rownames() 
 
-#ensemblnames <- lfcorder[1:30]
-#write.table(ensemblnames, file="ensemblnames.txt", sep = "\t",
-#            row.names = FALSE, col.names = FALSE, quote=FALSE)
-
+#read in gene names
 humangenes <- read.csv("Human_reference_May1.csv")
 
 # create a metadata data frame to add to the heatmaps
@@ -317,16 +313,16 @@ df <- data.frame(colData(dds)[,c("age")])
 rownames(df) <- colnames(dds)
 colnames(df) <- c("age")
 
-#df_humangenes <- merge(x = df, y = humangenes, by.x= )
-# use regularized log-scaled counts
-#heatmapdf <- assay(rld)
+##heatmap with normalized counts
 heatmapdf <- as.data.frame(counts(dds,normalized =TRUE))
 
 merged_data <- merge(x=heatmapdf,y=humangenes, by.x=0, by.y="GeneID", all.x=TRUE)
 
+#write csv with merged normalized counts and gene names
+
+write.csv(merged_data, file="counts_with_gene_names.csv")
 heatmap_metrics <- merged_data[merged_data$Row.names %in% lfcorder[1:30],]
 
-#heatmap_metrics_merged <- merge(x=heatmap_metrics,y=humangenes, by.x=0, by.y="GeneID", all.x=TRUE)
 
 
 pheatmap(
@@ -339,24 +335,7 @@ pheatmap(
   scale="row"
   )
 
-# re-scale regularized log-scaled counts by baseMean (estimated mean across all samples)
-pheatmap(
-  assay(rld)[lfcorder[1:30],] - log(results[lfcorder[1:30],"baseMean"],2), 
-  cluster_rows=TRUE, 
-  show_rownames=TRUE,
-  cluster_cols=TRUE,
-  labels_row=
-  annotation_col=df
-)
 
-# re-scale regularized log-scaled counts by reference level
-pheatmap(
-  assay(rld)[lfcorder[1:30],] - rowMeans(assay(rld)[lfcorder[1:30],dds$age=="young"]), 
-  cluster_rows=TRUE, 
-  show_rownames=TRUE,
-  cluster_cols=TRUE,
-  annotation_col=df
-)
 
 ##vijender chunk of code
 
